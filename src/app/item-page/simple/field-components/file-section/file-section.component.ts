@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import {
+  ChangeDetectionStrategy,
   Component,
   Inject,
   Input,
@@ -51,6 +52,7 @@ import { VarDirective } from '../../../../shared/utils/var.directive';
     TranslateModule,
     VarDirective,
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FileSectionComponent implements OnInit {
 
@@ -60,7 +62,7 @@ export class FileSectionComponent implements OnInit {
 
   separator = '<br/>';
 
-  bitstreams$: BehaviorSubject<Bitstream[]>;
+  bitstreams$: BehaviorSubject<Bitstream[]> = new BehaviorSubject([]);
 
   currentPage: number;
 
@@ -73,6 +75,8 @@ export class FileSectionComponent implements OnInit {
   primaryBitstreamId: string;
 
   showDownloadLinkAsAttachment: boolean;
+
+  fileNames: Map<string,string> = new Map<string, string>();
 
   constructor(
     protected bitstreamDataService: BitstreamDataService,
@@ -109,7 +113,6 @@ export class FileSectionComponent implements OnInit {
     this.isLoading = true;
     if (this.currentPage === undefined) {
       this.currentPage = 1;
-      this.bitstreams$ = new BehaviorSubject([]);
     } else {
       this.currentPage++;
     }
@@ -130,10 +133,16 @@ export class FileSectionComponent implements OnInit {
       getFirstCompletedRemoteData(),
     ).subscribe((bitstreamsRD: RemoteData<PaginatedList<Bitstream>>) => {
       if (bitstreamsRD.errorMessage) {
+        this.isLoading = false;
         this.notificationsService.error(this.translateService.get('file-section.error.header'), `${bitstreamsRD.statusCode} ${bitstreamsRD.errorMessage}`);
       } else if (hasValue(bitstreamsRD.payload)) {
         const current: Bitstream[] = this.bitstreams$.getValue();
-        this.bitstreams$.next([...current, ...bitstreamsRD.payload.page]);
+        const newBitstreams = bitstreamsRD.payload.page;
+        const combined = [...current, ...newBitstreams];
+        for (const file of newBitstreams) {
+          this.fileNames.set(file.id, this.dsoNameService.getName(file));
+        }
+        this.bitstreams$.next(combined);
         this.isLoading = false;
         this.isLastPage = this.currentPage === bitstreamsRD.payload.totalPages;
       }
